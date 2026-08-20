@@ -1,14 +1,15 @@
 import {
   catchErrors,
-  code,
-  format,
+  type RichMessage,
   type UniversalContext,
   type UniversalReplyOptions,
-} from '@verse-bot/shared';
+} from '@verse-bot/core';
+import { code, link } from 'tg-rich-messages';
 import { phrases } from '../locales/ru.js';
 import { PUBLIC_URL } from '../env.js';
+import { concatRich } from '../rich-utils.js';
 
-interface BotContentItem {
+export interface BotContentItem {
   id: number;
   image_url?: string;
   text_content?: string;
@@ -26,42 +27,48 @@ export async function sendContentItem(
   extra?: UniversalReplyOptions,
 ): Promise<void> {
   const imageUrl = item.image_url ? getImageUrl(item.image_url) : null;
-  const hintLine = ctx.format`\n\n${code(phrases.contentHint(ctx.platform, itemNumber))}`;
+  const hintText = phrases.contentHint(ctx.format, itemNumber);
+  const hintLine = ctx.format`\n\n${code(hintText)}`;
 
   if (imageUrl && ctx.replyWithPhoto) {
-    let caption = '';
+    const captionParts: RichMessage[] = [];
+
     if (item.text_content) {
-      caption += ctx.format`${item.text_content}`;
+      captionParts.push(ctx.format`${item.text_content}`);
     }
-    caption += ctx.isAdmin && ctx.chatType === 'private' ? hintLine : '';
-    await ctx.replyWithPhoto(imageUrl, caption, extra);
+
+    if (ctx.isAdmin && ctx.chatType === 'private') {
+      captionParts.push(hintLine);
+    }
+
+    await ctx.replyWithPhoto(imageUrl, concatRich(ctx.format, captionParts), extra);
     return;
   }
 
-  let message = '';
+  const messageParts: RichMessage[] = [];
   if (item.text_content) {
-    message += ctx.format`${item.text_content}`;
+    messageParts.push(ctx.format`${item.text_content}`);
   }
   if (imageUrl) {
-    message +=
-      ctx.platform === 'telegram'
-        ? `\n\n[📷 Смотреть изображение](${imageUrl})`
-        : `\n\n${imageUrl}`;
+    messageParts.push(ctx.format`${link('📷 Смотреть изображение', imageUrl)}`);
   }
-  message += hintLine;
-  await ctx.replySafe(message, extra);
+  if (ctx.isAdmin && ctx.chatType === 'private') {
+    messageParts.push(hintLine);
+  }
+
+  await ctx.replySafe(concatRich(ctx.format, messageParts), extra);
 }
 
 export const contentCommand = catchErrors(async (ctx: UniversalContext, itemNumber: number) => {
   if (!ctx.db) {
-    await ctx.replySafe(format(ctx.platform)`❌ База данных недоступна.`);
+    await ctx.replySafe(ctx.format`❌ База данных недоступна.`);
     return;
   }
 
   const { rows: allContent } = await ctx.db.query('SELECT * FROM bot_content ORDER BY id ASC');
 
   if (!allContent || allContent.length === 0) {
-    await ctx.replySafe(format(ctx.platform)`В базе данных нет контента.`);
+    await ctx.replySafe(ctx.format`В базе данных нет контента.`);
     return;
   }
 
@@ -69,13 +76,11 @@ export const contentCommand = catchErrors(async (ctx: UniversalContext, itemNumb
 
   if (itemIndex < 0 || itemIndex >= allContent.length) {
     await ctx.replySafe(
-      format(
-        ctx.platform,
-      )`Контент с номером ${String(itemNumber)} не найден. Всего элементов: ${String(allContent.length)}.`,
+      ctx.format`Контент с номером ${String(itemNumber)} не найден. Всего элементов: ${String(allContent.length)}.`,
     );
     return;
   }
 
-  const requestedItem = allContent[itemIndex];
+  const requestedItem: BotContentItem = allContent[itemIndex];
   await sendContentItem(ctx, requestedItem, itemNumber);
 }, phrases);

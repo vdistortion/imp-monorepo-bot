@@ -1,0 +1,27 @@
+name: Destroy Imp Bot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Destroy deployment via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            export STATIC_DOMAIN="${{ secrets.STATIC_DOMAIN }}"
+            export STATIC_PATH_PREFIX="${{ secrets.STATIC_PATH_PREFIX }}"
+            export CONTENT_DIR="${{ secrets.CONTENT_DIR }}"
+
+            PROJECT_PATH=~/projects/${{ github.event.repository.name }}
+            if [ -d "$PROJECT_PATH" ]; then
+              cd "$PROJECT_PATH"
+              docker compose -f apps/imp-bot/compose.release.yaml down -v --rmi all
+              rm -rf "$PROJECT_PATH"
+              echo "✅ Репозиторий удалён: $PROJECT_PATH"
+            fi

@@ -1,16 +1,14 @@
 import { execSync } from 'node:child_process';
-import { escapeMarkdownV2, format, requireAdmin } from '@verse-bot/shared';
+import { requireAdmin } from '@verse-bot/core';
 import { POSTGRES_DB, POSTGRES_HOST, POSTGRES_PASSWORD, POSTGRES_USER } from '../env.js';
 
 export const backupDbCommand = requireAdmin(async (ctx) => {
   if (!ctx.replyWithFile) {
-    await ctx.replySafe(
-      format(ctx.platform)`❌ Отправка файлов бэкапа не поддерживается на этой платформе.`,
-    );
+    await ctx.replySafe(ctx.format`❌ Отправка файлов бэкапа не поддерживается на этой платформе.`);
     return;
   }
 
-  await ctx.replySafe(format(ctx.platform)`⏳ Запускаю создание бэкапа...`);
+  await ctx.replySafe(ctx.format`⏳ Запускаю создание бэкапа...`);
 
   try {
     const dump = execSync(
@@ -22,11 +20,7 @@ export const backupDbCommand = requireAdmin(async (ctx) => {
     );
 
     const filename = `full_db_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.sql`;
-    await ctx.replyWithFile(
-      dump,
-      filename,
-      escapeMarkdownV2(format(ctx.platform)`Вот ваш полный бэкап базы данных 💾`),
-    );
+    await ctx.replyWithFile(dump, filename, ctx.format`Вот ваш полный бэкап базы данных 💾`);
   } catch (pgDumpErr) {
     console.error('[backupDb] pg_dump error:', pgDumpErr);
 
@@ -51,14 +45,10 @@ export const backupDbCommand = requireAdmin(async (ctx) => {
 
       const jsonBuffer = Buffer.from(JSON.stringify(backupData, null, 2), 'utf-8');
       const jsonFilename = `db_backup_${Date.now()}.json`;
-      await ctx.replyWithFile(
-        jsonBuffer,
-        jsonFilename,
-        escapeMarkdownV2('pg_dump недоступен, вот JSON-бэкап'),
-      );
+      await ctx.replyWithFile(jsonBuffer, jsonFilename, 'pg_dump недоступен, вот JSON-бэкап');
       return;
     }
 
-    await ctx.replySafe(format(ctx.platform)`❌ Произошла ошибка при создании бэкапа.`);
+    await ctx.replySafe(ctx.format`❌ Произошла ошибка при создании бэкапа.`);
   }
 });
